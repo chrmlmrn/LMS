@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Library Management System</title>
+    <style>
+        /* Your existing styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+        }
+        .navbar-left h1 {
+            margin: 0;
+        }
+        .navbar-right a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+            font-size: 16px;
+        }
+        .navbar-right a:hover {
+            text-decoration: underline;
+        }
+        .book-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 20px;
+        }
+        .book-item {
+            width: 200px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+            background-color: #f9f9f9;
+            border-radius: 10px;
+        }
+        .book-item img {
+            max-width: 100px;
+            margin-bottom: 10px;
+        }
+        .borrow-btn {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .borrow-btn:hover {
+            background-color: #0056b3;
+        }
+        /* Modal styling */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        /* Notification styling */
+        .notification {
+            display: none;
+            padding: 15px;
+            margin: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+        }
+        /* Style for the search form */
+        form {
+            display: flex;
+            justify-content: center;
+            margin: 20px;
+        }
+        input[type="text"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <h1>Library</h1>
+        </div>
+        <div class="navbar-right">
+            <a href="/borrowed_books">Borrowed Books</a>
+            <a href="/return">Return</a>
+        </div>
+    </nav>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Search form -->
+    <form method="POST" action="/">
+        <input type="text" name="query" placeholder="Search for a book">
+        <button type="submit">Search</button>
+    </form>
+
+    <!-- Search results -->
+    {% if results %}
+    <div class="book-list">
+        {% for book in results %}
+        <div class="book-item">
+            <img src="{{ book.thumbnail }}" alt="Book Thumbnail">
+            <p>Title: {{ book.title }}</p>
+            <p>Author: {{ book.author }}</p>
+            <p>Rating: {{ book.average_rating }}</p>
+            <button class="borrow-btn" data-isbn="{{ book.isbn13 }}" data-title="{{ book.title }}">Borrow</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Borrower Details Modal -->
+    <div id="borrowModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Borrow Book</h2>
+            <p id="modalBookTitle"></p>
+            <form id="borrowForm" method="POST">
+                <input type="text" name="name" placeholder="Your Name" required>
+                <input type="email" name="email" placeholder="Your Email" required>
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Get modal element
+        var modal = document.getElementById("borrowModal");
+
+        // Get the close button
+        var span = document.getElementsByClassName("close")[0];
+
+        // When the user clicks on <span> (x), close the modal
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        // Close the modal if the user clicks outside of it
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // Handle borrow button click and show modal
+        document.querySelectorAll('.borrow-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                var isbn = this.getAttribute('data-isbn');
+                var title = this.getAttribute('data-title');
+
+                document.getElementById('modalBookTitle').textContent = "Borrowing: " + title;
+                document.getElementById('borrowForm').action = '/borrow/' + isbn;
+
+                modal.style.display = "block";
+            });
+        });
+
+        // Handle borrow form submission
+        document.getElementById('borrowForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent the form from submitting the default way
+
+            var formData = new FormData(this);
+            var actionUrl = this.action;
+
+            fetch(actionUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    showNotification(data.message);
+                } else if (data.error) {
+                    showNotification(data.error);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Function to show notification
+        function showNotification(message) {
+            var notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+
+            // Hide the notification after 3 seconds
+            setTimeout(function() {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
